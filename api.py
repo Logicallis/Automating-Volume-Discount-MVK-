@@ -23,7 +23,7 @@ SELECT
     H.HCUST AS CustomerNumber, C.CNME AS CustomerName, H.HSHIP AS ShipToNumber,
     S.TNAME AS ShipToName, L.LPROD AS ItemNumber, I.IDESC AS ItemDescription,
     L.LQORD AS OrderedQuantity, H.HSDTE AS ScheduleDate, H.HRDTE AS RequestDate,
-    C.CDISC AS StandardDiscount, I.IPROD AS ItemDiscountCode, 
+    C.CDISC AS StandardDiscount, I.IDISC AS ItemDiscountCode, 
     P5.P05PRCD AS PriceAgreementCode, P3.P03PRC1 AS NetPriceTier1
 FROM BPNLCMF02.EQH H
 INNER JOIN BPNLCMF02.EQL L ON H.HORD = L.LORD AND L.LID = 'QL'
@@ -58,17 +58,28 @@ def get_order_details(quote_number: int):
         # Transform data into the exact JSON format required by Excel
         json_result = []
         for row in rows:
-            item = dict(zip(columns, row))
+            # Força as colunas que vieram do banco a ficarem em CAIXA ALTA para evitar erros do driver
+            db_item = dict(zip([c.upper() for c in columns], row))
             
-            # Trim empty spaces from string fields
-            item["CustomerName"] = item["CustomerName"].strip() if item["CustomerName"] else ""
-            item["ShipToName"] = item["ShipToName"].strip() if item["ShipToName"] else ""
-            item["ItemNumber"] = item["ItemNumber"].strip() if item["ItemNumber"] else ""
-            item["ItemDescription"] = item["ItemDescription"].strip() if item["ItemDescription"] else ""
-            item["ItemDiscountCode"] = item["ItemDiscountCode"].strip() if item["ItemDiscountCode"] else ""
-            
-            # Handle AS/400 DECIMALS to readable float numbers
-            item["OrderedQuantity"] = float(item["OrderedQuantity"]) if item["OrderedQuantity"] else 0
+            # Constrói o objeto JSON final com os nomes exatos que o Excel espera
+            item = {
+                "QuoteNumber": db_item.get("QUOTENUMBER"),
+                "QuoteLineNumber": db_item.get("QUOTELINENUMBER"),
+                "CustomerPONumber": db_item.get("CUSTOMERPONUMBER", ""),
+                "CustomerNumber": db_item.get("CUSTOMERNUMBER"),
+                "CustomerName": db_item.get("CUSTOMERNAME", "").strip() if db_item.get("CUSTOMERNAME") else "",
+                "ShipToNumber": db_item.get("SHIPTONUMBER"),
+                "ShipToName": db_item.get("SHIPTONAME", "").strip() if db_item.get("SHIPTONAME") else "",
+                "ItemNumber": db_item.get("ITEMNUMBER", "").strip() if db_item.get("ITEMNUMBER") else "",
+                "ItemDescription": db_item.get("ITEMDESCRIPTION", "").strip() if db_item.get("ITEMDESCRIPTION") else "",
+                "OrderedQuantity": float(db_item.get("ORDEREDQUANTITY", 0)) if db_item.get("ORDEREDQUANTITY") else 0,
+                "ScheduleDate": db_item.get("SCHEDULEDATE"),
+                "RequestDate": db_item.get("REQUESTDATE"),
+                "StandardDiscount": float(db_item.get("STANDARDDISCOUNT", 0)) if db_item.get("STANDARDDISCOUNT") else 0,
+                "ItemDiscountCode": db_item.get("ITEMDISCOUNTCODE", "").strip() if db_item.get("ITEMDISCOUNTCODE") else "",
+                "PriceAgreementCode": db_item.get("PRICEAGREEMENTCODE", "").strip() if db_item.get("PRICEAGREEMENTCODE") else "",
+                "NetPriceTier1": float(db_item.get("NETPRICETIER1", 0)) if db_item.get("NETPRICETIER1") else None
+            }
             
             json_result.append(item)
             

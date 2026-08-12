@@ -1,6 +1,7 @@
 import os
 import pyodbc
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import PlainTextResponse
 from dotenv import load_dotenv
 
 # Load credentials from the .env file
@@ -88,3 +89,44 @@ def get_order_details(quote_number: int):
     except Exception as e:
         # Return 500 Internal Server Error for any other exceptions
         raise HTTPException(status_code=500, detail=str(e))
+
+
+
+@app.get("/api/v1/orders/{quote_number}/text", response_class=PlainTextResponse)
+def get_order_text(quote_number: int):
+    # Puxa os dados da função principal que já criamos
+    data = get_order_details(quote_number)
+    
+    linhas_texto = []
+    for item in data:
+        # 1. Pega as datas brutas (ex: 20260803)
+        s_date = str(item.get("ScheduleDate", "")).strip()
+        r_date = str(item.get("RequestDate", "")).strip()
+        
+        # 2. Formata para o padrão de data do Excel (YYYY-MM-DD)
+        if len(s_date) == 8: 
+            s_date = f"{s_date[:4]}-{s_date[4:6]}-{s_date[6:]}"
+        if len(r_date) == 8: 
+            r_date = f"{r_date[:4]}-{r_date[4:6]}-{r_date[6:]}"
+
+        # Prepara a linha exatamente com o que o Excel vai colar
+        valores = [
+            str(item.get("QuoteNumber", "")),
+            str(item.get("QuoteLineNumber", "")),
+            str(item.get("CustomerPONumber", "")),
+            str(item.get("CustomerNumber", "")),
+            str(item.get("CustomerName", "")),
+            str(item.get("ShipToNumber", "")),
+            str(item.get("ShipToName", "")),
+            str(item.get("ItemNumber", "")),
+            str(item.get("ItemDescription", "")),
+            str(item.get("OrderedQuantity", 0)),
+            s_date,  # <-- Coluna K (Schedule Date já formatada)
+            r_date,  # <-- Coluna L (Request Date já formatada)
+            str(item.get("ItemDiscountCode", "")), 
+            str(item.get("NetPriceTier1", ""))     
+        ]
+        # Une tudo com o símbolo |
+        linhas_texto.append("|".join(valores))
+        
+    return "\n".join(linhas_texto)
